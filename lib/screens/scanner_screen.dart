@@ -1,162 +1,258 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
-import '../widgets/scan_button.dart';
-import '../models/product_model.dart';
+import '../widgets/scanner_overlay.dart';
+import '../services/product_api_service.dart';
 import '../services/product_service.dart';
+import 'barcode_result_screen.dart';
 
-class ScannerScreen extends StatelessWidget {
+class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final ProductService productService = ProductService();
+  State<ScannerScreen> createState() => _ScannerScreenState();
+}
 
-    return Scaffold(
-      backgroundColor: const Color(
-        0xFF1E2923,
-      ), // Darker immersive mode for scanner placeholder
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text(
-          'Barcode Scanner',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+class _ScannerScreenState extends State<ScannerScreen> {
+  final MobileScannerController _controller = MobileScannerController(
+    detectionSpeed: DetectionSpeed.noDuplicates,
+    formats: [
+      BarcodeFormat.ean13,
+      BarcodeFormat.ean8,
+      BarcodeFormat.upcA,
+      BarcodeFormat.upcE,
+    ],
+  );
+
+  final ProductApiService _apiService = ProductApiService();
+  final ProductService _productService = ProductService();
+  bool _isScanned = false;
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleBarcode(BarcodeCapture capture) async {
+    if (_isScanned || _isLoading) return;
+    final List<Barcode> barcodes = capture.barcodes;
+    for (final barcode in barcodes) {
+      if (barcode.rawValue != null) {
+        final String code = barcode.rawValue!;
+        await _fetchAndOpenProduct(code);
+        break;
+      }
+    }
+  }
+
+  Future<void> _fetchAndOpenProduct(String code) async {
+    setState(() {
+      _isScanned = true;
+      _isLoading = true;
+    });
+
+    final product = await _apiService.fetchProduct(code);
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (product != null) {
+      // Save to Hive scan history explicitly before navigating
+      await _productService.addRecentScan(product);
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => BarcodeResultScreen(product: product),
         ),
+      ).then((_) {
+        if (mounted) {
+          setState(() {
+            _isScanned = false;
+          });
+        }
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Product not found ($code). You can add it later.'),
+          backgroundColor: Colors.orange.shade800,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() {
+            _isScanned = false;
+          });
+        }
+      });
+    }
+  }
+
+  void _showManualEntryDialog() {
+    final TextEditingController controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enter Barcode Manually'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            hintText: 'e.g. 5000112637952',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final code = controller.text.trim();
+              if (code.isNotEmpty) {
+                Navigator.pop(context);
+                await _fetchAndOpenProduct(code);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E7D32),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Search'),
+          ),
+        ],
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Scanner view finder simulation box
-              Container(
-                width: 260,
-                height: 260,
-                decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFF43A047), width: 3),
-                  borderRadius: BorderRadius.circular(24),
-                  color: Colors.white.withValues(alpha: 0.05),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Live Camera Scanner View
+          MobileScanner(controller: _controller, onDetect: _handleBarcode),
+          // Viewfinder Overlay
+          const ScannerOverlay(),
+          // Top AppBar / Header overlay
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              iconTheme: const IconThemeData(color: Colors.white),
+              title: const Text(
+                'Scan UK Food Product',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                 ),
-                child: Stack(
-                  alignment: Alignment.center,
+              ),
+              actions: [
+                IconButton(
+                  onPressed: () => _controller.toggleTorch(),
+                  icon: const Icon(Icons.flash_on, color: Colors.white),
+                  tooltip: 'Toggle Flash',
+                ),
+                IconButton(
+                  onPressed: () => _controller.switchCamera(),
+                  icon: const Icon(Icons.cameraswitch, color: Colors.white),
+                  tooltip: 'Switch Camera',
+                ),
+              ],
+            ),
+          ),
+          // Loading Indicator Overlay when fetching API
+          if (_isLoading)
+            Container(
+              color: Colors.black.withValues(alpha: 0.7),
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      Icons.qr_code_scanner,
-                      size: 96,
-                      color: Color(0xFF43A047),
-                    ),
-                    // Corner accents
-                    Positioned(
-                      top: 12,
-                      left: 12,
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            top: BorderSide(color: Colors.white, width: 3),
-                            left: BorderSide(color: Colors.white, width: 3),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 12,
-                      right: 12,
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            top: BorderSide(color: Colors.white, width: 3),
-                            right: BorderSide(color: Colors.white, width: 3),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 12,
-                      left: 12,
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: Colors.white, width: 3),
-                            left: BorderSide(color: Colors.white, width: 3),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 12,
-                      right: 12,
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: Colors.white, width: 3),
-                            right: BorderSide(color: Colors.white, width: 3),
-                          ),
-                        ),
+                    CircularProgressIndicator(color: Color(0xFF43A047)),
+                    SizedBox(height: 16),
+                    Text(
+                      'Fetching product from Open Food Facts...',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 36),
-              const Text(
-                'Ready to scan your product',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Align barcode within the frame to automatically retrieve UK product nutrition & ingredients.',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 48),
-              ScanButton(
-                onPressed: () async {
-                  // TODO: Future camera / barcode scanner integration (e.g. mobile_scanner or flutter_barcode_scanner)
-                  // For MVP 0.1 simulation, simulate scanning a product and adding to recent scans
-                  final simulatedProduct = const ProductModel(
-                    barcode: '5000184055271',
-                    name: 'British Semi-Skimmed Milk',
-                    brand: 'M&S',
-                    ingredients: ['Semi-Skimmed Milk'],
-                    calories: 48.0,
-                    sugar: 4.8,
-                    protein: 3.6,
-                    fat: 1.8,
-                    score: 82,
-                  );
-                  productService.addRecentScan(simulatedProduct);
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Successfully scanned M&S British Semi-Skimmed Milk!',
-                      ),
-                      backgroundColor: Color(0xFF2E7D32),
+            ),
+          // Bottom instructions & Manual Entry Button
+          if (!_isLoading)
+            Positioned(
+              bottom: 40,
+              left: 24,
+              right: 24,
+              child: Column(
+                children: [
+                  const Text(
+                    'Align barcode within frame',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
-                  );
-                  Navigator.pop(context);
-                },
-                label: 'Start Scan',
-                icon: Icons.camera,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Fetching live nutritional scores & ingredients',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: _showManualEntryDialog,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white.withValues(alpha: 0.15),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      icon: const Icon(Icons.keyboard_outlined),
+                      label: const Text('Enter Barcode Manually'),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+        ],
       ),
     );
   }

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import 'screens/main_shell_screen.dart';
+import 'services/product_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ProductService.initHive();
   runApp(const UKFoodScannerApp());
 }
 

@@ -1,102 +1,104 @@
+import 'package:flutter/foundation.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
 import '../models/product_model.dart';
 
 class ProductService {
-  // Mock recent scans / database for Version 0.1
-  // TODO: Future API integration - connect to Open Food Facts API or Firebase Firestore
-  final List<ProductModel> _recentScans = [
-    const ProductModel(
-      barcode: '5000112637952',
-      name: 'Tesco Whole Milk',
-      brand: 'Tesco',
-      ingredients: ['Organic Cow\'s Milk'],
-      calories: 62.0,
-      sugar: 4.7,
-      protein: 3.4,
-      fat: 3.6,
-      score: 78,
-    ),
-    const ProductModel(
-      barcode: '5010029117604',
-      name: 'Heinz Baked Beans',
-      brand: 'Heinz',
-      ingredients: [
-        'Beans (51%)',
-        'Tomatoes (34%)',
-        'Water',
-        'Sugar',
-        'Spirit Vinegar',
-        'Modified Cornflower',
-        'Salt',
-        'Spice Extracts',
-        'Herb Extract',
-      ],
-      calories: 79.0,
-      sugar: 4.7,
-      protein: 4.7,
-      fat: 0.2,
-      score: 65,
-    ),
-    const ProductModel(
-      barcode: '5449000000996',
-      name: 'Coca Cola Original',
-      brand: 'Coca-Cola',
-      ingredients: [
-        'Carbonated Water',
-        'Sugar',
-        'Colour (Caramel E150d)',
-        'Phosphoric Acid',
-        'Natural Flavourings including Caffeine',
-      ],
-      calories: 42.0,
-      sugar: 10.6,
-      protein: 0.0,
-      fat: 0.0,
-      score: 35,
-    ),
-  ];
+  static const String _boxName = 'scan_history_box';
 
-  // Fetch recent scans
-  Future<List<ProductModel>> getRecentScans() async {
-    // TODO: Future API / Local DB integration (e.g. Hive or SQLite or Firebase local cache)
-    await Future.delayed(
-      const Duration(milliseconds: 300),
-    ); // simulate network/disk latency
-    return _recentScans;
-  }
+  // Get Hive box instance
+  Box get _box => Hive.box(_boxName);
 
-  // Fetch product by barcode
-  Future<ProductModel?> scanProduct(String barcode) async {
-    // TODO: Future API integration - call REST API or Firebase Functions
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    // Check if exists in mock list or return a default scanned item
-    try {
-      return _recentScans.firstWhere((p) => p.barcode == barcode);
-    } catch (_) {
-      // Return a generic mock product if barcode not found in preset
-      return ProductModel(
-        barcode: barcode,
-        name: 'British Mature Cheddar',
-        brand: 'Sainsbury\'s',
-        ingredients: [
-          'Pasteurised Cow\'s Milk',
-          'Salt',
-          'Starter Culture',
-          'Rennet',
-        ],
-        calories: 416.0,
-        sugar: 0.1,
-        protein: 25.4,
-        fat: 34.9,
-        score: 55,
-      );
+  // Initialize Hive and open box
+  static Future<void> initHive() async {
+    await Hive.initFlutter();
+    if (!Hive.isBoxOpen(_boxName)) {
+      await Hive.openBox(_boxName);
+      debugPrint('[ProductService] Hive box "$_boxName" opened successfully.');
     }
   }
 
-  // Add product to recent scans
-  void addRecentScan(ProductModel product) {
-    // TODO: Future API/Local DB persistence
-    _recentScans.removeWhere((p) => p.barcode == product.barcode);
-    _recentScans.insert(0, product);
+  // Fetch recent scans from Hive local database
+  Future<List<ProductModel>> getRecentScans() async {
+    try {
+      if (!Hive.isBoxOpen(_boxName)) {
+        await Hive.openBox(_boxName);
+      }
+      final rawData = _box.values.toList();
+      debugPrint('[ProductService] Loaded ${rawData.length} scans from Hive.');
+      final List<ProductModel> scans = [];
+      for (var item in rawData) {
+        if (item is Map) {
+          final Map<String, dynamic> jsonMap = Map<String, dynamic>.from(item);
+          scans.add(ProductModel.fromJson(jsonMap));
+        }
+      }
+      // Sort by scannedDate descending (newest first)
+      scans.sort(
+        (a, b) => (b.scannedDate ?? DateTime.now()).compareTo(
+          a.scannedDate ?? DateTime.now(),
+        ),
+      );
+      return scans;
+    } catch (e) {
+      debugPrint('[ProductService] Error loading scans from Hive: $e');
+      return [];
+    }
+  }
+
+  // Add product to recent scans in Hive local database
+  Future<void> addRecentScan(ProductModel product) async {
+    try {
+      if (!Hive.isBoxOpen(_boxName)) {
+        await Hive.openBox(_boxName);
+      }
+      // Use barcode as key so duplicates update to top
+      final productWithDate = ProductModel(
+        barcode: product.barcode,
+        name: product.name,
+        brand: product.brand,
+        imageUrl: product.imageUrl,
+        ingredients: product.ingredients,
+        calories: product.calories,
+        sugar: product.sugar,
+        protein: product.protein,
+        fat: product.fat,
+        allergens: product.allergens,
+        score: product.score,
+        scannedDate: DateTime.now(),
+      );
+      await _box.put(product.barcode, productWithDate.toJson());
+      debugPrint(
+        '[ProductService] Successfully saved product: ${product.name} (${product.barcode}) to Hive.',
+      );
+    } catch (e) {
+      debugPrint('[ProductService] Error saving product to Hive: $e');
+    }
+  }
+
+  // Delete a specific scan by barcode
+  Future<void> deleteScan(String barcode) async {
+    try {
+      if (!Hive.isBoxOpen(_boxName)) {
+        await Hive.openBox(_boxName);
+      }
+      await _box.delete(barcode);
+      debugPrint('[ProductService] Deleted scan with barcode: $barcode');
+    } catch (e) {
+      debugPrint('[ProductService] Error deleting scan: $e');
+    }
+  }
+
+  // Clear all scan history
+  Future<void> clearAllHistory() async {
+    try {
+      if (!Hive.isBoxOpen(_boxName)) {
+        await Hive.openBox(_boxName);
+      }
+      await _box.clear();
+      debugPrint('[ProductService] Cleared all scan history.');
+    } catch (e) {
+      debugPrint('[ProductService] Error clearing history: $e');
+    }
   }
 }
