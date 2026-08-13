@@ -21,6 +21,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _selectedGoal = 'eat_healthier';
   bool _isLoading = true;
   bool _notificationsEnabled = true;
+  int _versionTapCount = 0;
 
   final List<Map<String, String>> _goals = [
     {'id': 'eat_healthier', 'name': 'Eat healthier'},
@@ -132,7 +133,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (confirmed == true) {
-      // Clear favourites box
       final favs = await _favouriteService.getFavourites();
       for (var f in favs) {
         await _favouriteService.toggleFavourite(f);
@@ -163,7 +163,87 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'UK Food Scanner helps you scan food items, evaluate UK nutritional scores, detect allergens, and discover healthier alternatives using data provided by Open Food Facts.',
           style: TextStyle(fontSize: 13, height: 1.4),
         ),
+        const SizedBox(height: 12),
+        const Text(
+          'Data Source:',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+        ),
+        const Text(
+          'Open Food Facts - Open database providing food product data worldwide.',
+          style: TextStyle(fontSize: 13, height: 1.4),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Privacy Explanation:',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+        ),
+        const Text(
+          '• Camera: Used strictly and only for barcode scanning.\n• Data: Stored locally on your device unless you enable future sync features.',
+          style: TextStyle(fontSize: 13, height: 1.4),
+        ),
       ],
+    );
+  }
+
+  void _showDeveloperOptionsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Developer Options (Test Mode)'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.delete_sweep, color: Colors.red),
+              title: const Text('Clear Hive Data'),
+              onTap: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                Navigator.pop(context);
+                await _historyService.clearHistory();
+                final favs = await _favouriteService.getFavourites();
+                for (var f in favs) {
+                  await _favouriteService.toggleFavourite(f);
+                }
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('All Hive local data cleared.')),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.refresh, color: Colors.orange),
+              title: const Text('Reset Onboarding'),
+              onTap: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                Navigator.pop(context);
+                await _preferencesService.setCompletedOnboarding(false);
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Onboarding reset. Restart app to view.'),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.cleaning_services, color: Colors.blue),
+              title: const Text('Clear Cache'),
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Cache cleared successfully.')),
+                );
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -490,19 +570,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onTap: _showAboutDialog,
                           ),
                           const Divider(height: 1, indent: 16, endIndent: 16),
-                          const ListTile(
-                            leading: Icon(
+                          ListTile(
+                            leading: const Icon(
                               Icons.phone_android,
                               color: Colors.grey,
                             ),
-                            title: Text('App Version'),
-                            trailing: Text(
+                            title: const Text('App Version'),
+                            trailing: const Text(
                               '1.0.0+1',
                               style: TextStyle(
                                 color: Colors.grey,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+                            onTap: () {
+                              setState(() {
+                                _versionTapCount++;
+                              });
+                              if (_versionTapCount >= 5) {
+                                _versionTapCount = 0;
+                                _showDeveloperOptionsDialog();
+                              }
+                            },
                           ),
                         ],
                       ),

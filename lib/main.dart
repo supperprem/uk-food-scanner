@@ -1,13 +1,35 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'screens/main_shell_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'services/product_service.dart';
 import 'services/preferences_service.dart';
+import 'services/analytics_service.dart';
+import 'services/logger_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Crash reporting & error capture configuration
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    LoggerService.error(
+      'Flutter Framework Error',
+      details.exception,
+      details.stack,
+      'Crashlytics',
+    );
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    LoggerService.error('Uncaught Async Error', error, stack, 'Crashlytics');
+    return true;
+  };
+
   await ProductService.initHive();
+  AnalyticsService.logAppOpen();
+
   final bool completedOnboarding = await PreferencesService()
       .hasCompletedOnboarding();
   runApp(UKFoodScannerApp(completedOnboarding: completedOnboarding));
