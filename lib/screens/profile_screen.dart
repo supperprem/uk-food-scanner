@@ -127,27 +127,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   children: _goals.map((goal) {
                     final isSelected = _selectedGoal == goal;
-                    return RadioListTile<String>(
-                      title: Text(
-                        goal,
-                        style: TextStyle(
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          color: isSelected
-                              ? const Color(0xFF2E7D32)
-                              : Colors.black87,
+                    return InkWell(
+                      onTap: () {
+                        setState(() {
+                          _selectedGoal = goal;
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isSelected
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_off,
+                              color: isSelected
+                                  ? const Color(0xFF2E7D32)
+                                  : Colors.grey,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 16),
+                            Text(
+                              goal,
+                              style: TextStyle(
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: isSelected
+                                    ? const Color(0xFF2E7D32)
+                                    : Colors.black87,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      value: goal,
-                      groupValue: _selectedGoal,
-                      activeColor: const Color(0xFF2E7D32),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedGoal = value!;
-                        });
-                        // TODO: Future Firebase sync - save user goal to user profile document
-                      },
                     );
                   }).toList(),
                 ),

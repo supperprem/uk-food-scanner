@@ -26,7 +26,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadRecentScans() async {
-    // TODO: Future API integration - fetch recent scans from local cache or Firebase/Backend
     final scans = await _productService.getRecentScans();
     setState(() {
       _recentScans = scans;
@@ -39,7 +38,6 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       MaterialPageRoute(builder: (context) => const ScannerScreen()),
     ).then((_) {
-      // Refresh recent scans when returning from scanner
       _loadRecentScans();
     });
   }
@@ -94,7 +92,19 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Hero Banner / Subtitle Card
+              // 1. Header & Subtitle
+              const Text(
+                'Scan products. Understand ingredients. Make better choices.',
+                style: TextStyle(
+                  color: Colors.black54,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // 2. Main Scan Card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
@@ -108,45 +118,117 @@ class _HomeScreenState extends State<HomeScreen> {
                   boxShadow: [
                     BoxShadow(
                       color: const Color(0xFF2E7D32).withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Text(
-                      'Eat Healthier in the UK',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.qr_code_scanner,
+                        color: Colors.white,
+                        size: 40,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 16),
                     const Text(
-                      'Scan products.\nUnderstand ingredients.\nMake better choices.',
+                      'Scan your product',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        height: 1.3,
                       ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Instant UK nutritional scores & additives check',
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                      textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 20),
                     ScanButton(
                       onPressed: () => _navigateToScanner(context),
-                      label: 'Scan Product',
+                      label: 'Start Scanning',
                       icon: Icons.camera_alt_outlined,
                     ),
                   ],
                 ),
               ),
+              const SizedBox(height: 20),
+
+              // 4. User Goal Card
+              InkWell(
+                onTap: () => _navigateToProfile(context),
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.track_changes,
+                          color: Color(0xFF2E7D32),
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Your goal',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Eat healthier',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 28),
 
-              // Recent Scans Section Header
+              // 3. Recent Scans Section Header
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -160,7 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   TextButton(
                     onPressed: () {
-                      // TODO: Future API integration - View all scan history
+                      // View all action
                     },
                     style: TextButton.styleFrom(
                       foregroundColor: const Color(0xFF2E7D32),
@@ -217,7 +299,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         return ScoreCard(
                           product: product,
                           onTap: () {
-                            // TODO: Future API integration - open product detail screen
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(

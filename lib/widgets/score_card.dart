@@ -20,6 +20,21 @@ class ScoreCard extends StatelessWidget {
     return 'Poor';
   }
 
+  Widget _buildNutriIndicator(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        '$label: $value',
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scoreColor = _getScoreColor(product.score);
@@ -81,6 +96,33 @@ class ScoreCard extends StatelessWidget {
                         fontSize: 12,
                         color: Colors.grey.shade600,
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Small nutrition indicators (Sugar, Protein, Fat)
+                    Row(
+                      children: [
+                        _buildNutriIndicator(
+                          'Sugar',
+                          '${product.sugar}g',
+                          product.sugar > 10
+                              ? Colors.red.shade700
+                              : Colors.green.shade700,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildNutriIndicator(
+                          'Prot',
+                          '${product.protein}g',
+                          Colors.blue.shade700,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildNutriIndicator(
+                          'Fat',
+                          '${product.fat}g',
+                          product.fat > 15
+                              ? Colors.orange.shade700
+                              : Colors.green.shade700,
+                        ),
+                      ],
                     ),
                   ],
                 ),

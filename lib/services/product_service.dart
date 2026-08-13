@@ -6,7 +6,7 @@ class ProductService {
   final List<ProductModel> _recentScans = [
     const ProductModel(
       barcode: '5000112637952',
-      name: 'Organic Whole Milk',
+      name: 'Tesco Whole Milk',
       brand: 'Tesco',
       ingredients: ['Organic Cow\'s Milk'],
       calories: 62.0,
@@ -17,7 +17,7 @@ class ProductService {
     ),
     const ProductModel(
       barcode: '5010029117604',
-      name: 'Baked Beans in Tomato Sauce',
+      name: 'Heinz Baked Beans',
       brand: 'Heinz',
       ingredients: [
         'Beans (51%)',
@@ -37,23 +37,21 @@ class ProductService {
       score: 65,
     ),
     const ProductModel(
-      barcode: '5000159480602',
-      name: 'Diet Coke',
+      barcode: '5449000000996',
+      name: 'Coca Cola Original',
       brand: 'Coca-Cola',
       ingredients: [
         'Carbonated Water',
+        'Sugar',
         'Colour (Caramel E150d)',
-        'Sweeteners (Aspartame, Acesulfame K)',
-        'Natural Flavourings',
-        'Caffeine',
-        'Acid (Phosphoric Acid)',
-        'Citric Acid',
+        'Phosphoric Acid',
+        'Natural Flavourings including Caffeine',
       ],
-      calories: 0.5,
-      sugar: 0.0,
+      calories: 42.0,
+      sugar: 10.6,
       protein: 0.0,
       fat: 0.0,
-      score: 42,
+      score: 35,
     ),
   ];
 
