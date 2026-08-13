@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'home_screen.dart';
 import 'scanner_screen.dart';
+import 'insights_screen.dart';
+import 'shopping_summary_screen.dart';
 import 'profile_screen.dart';
 
 class MainShellScreen extends StatefulWidget {
@@ -17,6 +19,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
   final List<Widget> _screens = const [
     HomeScreen(),
     ScannerScreen(),
+    InsightsScreen(),
+    ShoppingSummaryScreen(),
     ProfileScreen(),
   ];
 
@@ -44,8 +48,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
           backgroundColor: Colors.white,
           selectedItemColor: const Color(0xFF2E7D32),
           unselectedItemColor: Colors.grey.shade400,
-          selectedFontSize: 12,
-          unselectedFontSize: 12,
+          selectedFontSize: 11,
+          unselectedFontSize: 11,
           type: BottomNavigationBarType.fixed,
           items: const [
             BottomNavigationBarItem(
@@ -57,6 +61,16 @@ class _MainShellScreenState extends State<MainShellScreen> {
               icon: Icon(Icons.qr_code_scanner_outlined),
               activeIcon: Icon(Icons.qr_code_scanner),
               label: 'Scan',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.insights_outlined),
+              activeIcon: Icon(Icons.insights),
+              label: 'Insights',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.shopping_basket_outlined),
+              activeIcon: Icon(Icons.shopping_basket),
+              label: 'Shopping',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),

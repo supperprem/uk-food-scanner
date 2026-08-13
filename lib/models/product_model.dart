@@ -1,3 +1,5 @@
+import '../services/health_score_service.dart';
+
 class ProductModel {
   final String barcode;
   final String name;
@@ -9,7 +11,8 @@ class ProductModel {
   final double protein; // per 100g in grams
   final double fat; // per 100g in grams
   final List<String> allergens;
-  final int score; // e.g. 0-100 Nutri-Score / Yuka score equivalent
+  final int score; // e.g. 0-100
+  final String category; // e.g. Excellent, Good, Fair, Needs Improvement, Poor
   final DateTime? scannedDate;
 
   const ProductModel({
@@ -24,6 +27,7 @@ class ProductModel {
     required this.fat,
     required this.allergens,
     required this.score,
+    required this.category,
     this.scannedDate,
   });
 
@@ -47,16 +51,55 @@ class ProductModel {
         data['imageUrl']?.toString() ??
         '';
 
-    // Ingredients
+    // Ingredients parsing supporting Format 1 (list of maps), Format 2 (list of strings), Format 3 (ingredients_text)
     List<String> ingredients = [];
     if (data['ingredients'] is List) {
-      ingredients = (data['ingredients'] as List)
-          .map((e) => e.toString())
-          .toList();
+      for (var item in (data['ingredients'] as List)) {
+        if (item is Map) {
+          final text = item['text'] ?? item['name'] ?? item['id'];
+          if (text != null) {
+            String cleanText = text.toString();
+            if (cleanText.startsWith('en:')) {
+              cleanText = cleanText.replaceFirst('en:', '');
+            }
+            cleanText = cleanText.replaceAll('-', ' ').trim();
+            if (cleanText.isNotEmpty && !cleanText.startsWith('ciqual')) {
+              ingredients.add(cleanText);
+            }
+          }
+        } else if (item is String) {
+          String cleanText = item;
+          if (cleanText.startsWith('{') && cleanText.contains('text:')) {
+            final match = RegExp(r'text:\s*([^,}]+)').firstMatch(cleanText);
+            if (match != null) {
+              cleanText = match.group(1)?.trim() ?? cleanText;
+            }
+          }
+          if (cleanText.startsWith('en:')) {
+            cleanText = cleanText.replaceFirst('en:', '');
+          }
+          cleanText = cleanText.replaceAll('-', ' ').trim();
+          if (cleanText.isNotEmpty && !cleanText.contains('ciqual_proxy')) {
+            ingredients.add(cleanText);
+          }
+        }
+      }
     } else if (data['ingredients_text'] != null) {
       ingredients = data['ingredients_text']
           .toString()
           .split(',')
+          .map((e) => e.trim())
+          .map(
+            (e) => e.replaceAll(
+              RegExp(r'(_)?id:en:[^,\s]+', caseSensitive: false),
+              '',
+            ),
+          )
+          .map(
+            (e) => e.replaceAll(RegExp(r'ciqual_proxy_food_code:[^\s,]+'), ''),
+          )
+          .map((e) => e.replaceAll(RegExp(r'[{}]'), ''))
+          .map((e) => e.replaceAll(RegExp(r'text:'), ''))
           .map((e) => e.trim())
           .where((e) => e.isNotEmpty)
           .toList();
@@ -110,26 +153,25 @@ class ProductModel {
           .toList();
     }
 
-    // Score
+    // Calculate score & category using HealthScoreService if not provided
     int score = 50;
-    if (data['score'] != null) {
+    String category = 'Fair';
+
+    if (data['score'] != null && data['category'] != null) {
       score = int.tryParse(data['score'].toString()) ?? 50;
+      category = data['category'].toString();
     } else {
-      final nutriScore = data['nutriscore_grade']?.toString().toLowerCase();
-      if (nutriScore == 'a') {
-        score = 85;
-      } else if (nutriScore == 'b') {
-        score = 70;
-      } else if (nutriScore == 'c') {
-        score = 55;
-      } else if (nutriScore == 'd') {
-        score = 40;
-      } else if (nutriScore == 'e') {
-        score = 25;
-      } else {
-        double penalty = (sugar * 2) + (fat * 1.5);
-        score = (90 - penalty).clamp(10, 95).toInt();
-      }
+      final healthRes = HealthScoreService.calculateScore(
+        sugar: sugar,
+        fat: fat,
+        saturatedFat: fat * 0.4,
+        salt: 0.5,
+        protein: protein,
+        fibre: 2.0,
+        calories: calories,
+      );
+      score = healthRes.score;
+      category = healthRes.category;
     }
 
     // Scanned Date
@@ -150,6 +192,7 @@ class ProductModel {
       fat: fat,
       allergens: allergens,
       score: score,
+      category: category,
       scannedDate: scannedDate ?? DateTime.now(),
     );
   }
@@ -167,6 +210,7 @@ class ProductModel {
       'fat': fat,
       'allergens': allergens,
       'score': score,
+      'category': category,
       'scannedDate': (scannedDate ?? DateTime.now()).toIso8601String(),
     };
   }

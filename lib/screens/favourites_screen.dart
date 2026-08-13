@@ -2,77 +2,43 @@
 import 'package:flutter/material.dart';
 
 import '../models/product_model.dart';
-import '../services/history_service.dart';
+import '../services/favourite_service.dart';
 import '../widgets/score_card.dart';
 import 'product_detail_screen.dart';
 import 'scanner_screen.dart';
 
-class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key});
+class FavouritesScreen extends StatefulWidget {
+  const FavouritesScreen({super.key});
 
   @override
-  State<HistoryScreen> createState() => _HistoryScreenState();
+  State<FavouritesScreen> createState() => _FavouritesScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> {
-  final HistoryService _historyService = HistoryService();
-  List<ProductModel> _history = [];
+class _FavouritesScreenState extends State<FavouritesScreen> {
+  final FavouriteService _favouriteService = FavouriteService();
   bool _isLoading = true;
+  List<ProductModel> _favourites = [];
 
   @override
   void initState() {
     super.initState();
-    _loadHistory();
+    _loadFavourites();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _loadHistory();
+    _loadFavourites();
   }
 
-  Future<void> _loadHistory() async {
+  Future<void> _loadFavourites() async {
     setState(() => _isLoading = true);
-    final history = await _historyService.getHistory();
-    print('HISTORY SCREEN COUNT: ${history.length}');
+    final favs = await _favouriteService.getFavourites();
     if (mounted) {
       setState(() {
-        _history = history;
+        _favourites = favs;
         _isLoading = false;
       });
-    }
-  }
-
-  Future<void> _deleteItem(String barcode) async {
-    await _historyService.deleteScan(barcode);
-    _loadHistory();
-  }
-
-  Future<void> _clearAll() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Clear Scan History'),
-        content: const Text(
-          'Are you sure you want to delete all scan history?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete All'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await _historyService.clearHistory();
-      _loadHistory();
     }
   }
 
@@ -85,25 +51,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black87),
         title: const Text(
-          'Scan History',
+          'Saved Products',
           style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
         ),
-        actions: [
-          if (_history.isNotEmpty)
-            IconButton(
-              onPressed: _clearAll,
-              icon: const Icon(Icons.delete_sweep_outlined, color: Colors.red),
-              tooltip: 'Clear History',
-            ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: SafeArea(
         child: _isLoading
             ? const Center(
                 child: CircularProgressIndicator(color: Color(0xFF2E7D32)),
               )
-            : _history.isEmpty
+            : _favourites.isEmpty
             ? Center(
                 child: Padding(
                   padding: const EdgeInsets.all(32.0),
@@ -117,14 +74,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
-                          Icons.qr_code_scanner,
+                          Icons.star_outline_rounded,
                           size: 56,
                           color: Color(0xFF2E7D32),
                         ),
                       ),
                       const SizedBox(height: 20),
                       const Text(
-                        'No scans yet',
+                        'No saved products',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -134,7 +91,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Scanned food items and their nutrition analysis will appear here to help you track your health journey.',
+                        'Tap the star icon on any product detail page to save it to your favourites for quick access.',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey.shade600,
@@ -150,7 +107,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             MaterialPageRoute(
                               builder: (context) => const ScannerScreen(),
                             ),
-                          ).then((_) => _loadHistory());
+                          ).then((_) => _loadFavourites());
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF2E7D32),
@@ -171,42 +128,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               )
             : RefreshIndicator(
-                onRefresh: _loadHistory,
+                onRefresh: _loadFavourites,
                 color: const Color(0xFF2E7D32),
                 child: ListView.builder(
                   padding: const EdgeInsets.all(20),
-                  itemCount: _history.length,
+                  itemCount: _favourites.length,
                   itemBuilder: (context, index) {
-                    final product = _history[index];
-                    return Dismissible(
-                      key: Key(product.barcode),
-                      direction: DismissDirection.endToStart,
-                      background: Container(
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 20),
-                        margin: const EdgeInsets.symmetric(vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade700,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(
-                          Icons.delete_outline,
-                          color: Colors.white,
-                        ),
-                      ),
-                      onDismissed: (_) => _deleteItem(product.barcode),
-                      child: ScoreCard(
-                        product: product,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  ProductDetailScreen(product: product),
-                            ),
-                          ).then((_) => _loadHistory());
-                        },
-                      ),
+                    final product = _favourites[index];
+                    return ScoreCard(
+                      product: product,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                ProductDetailScreen(product: product),
+                          ),
+                        ).then((_) => _loadFavourites());
+                      },
                     );
                   },
                 ),

@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 
 import 'screens/main_shell_screen.dart';
+import 'screens/onboarding/onboarding_screen.dart';
 import 'services/product_service.dart';
+import 'services/preferences_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ProductService.initHive();
-  runApp(const UKFoodScannerApp());
+  final bool completedOnboarding = await PreferencesService()
+      .hasCompletedOnboarding();
+  runApp(UKFoodScannerApp(completedOnboarding: completedOnboarding));
 }
 
 class UKFoodScannerApp extends StatelessWidget {
-  const UKFoodScannerApp({super.key});
+  final bool completedOnboarding;
+
+  const UKFoodScannerApp({super.key, this.completedOnboarding = true});
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +32,7 @@ class UKFoodScannerApp extends StatelessWidget {
           surface: const Color(0xFFF8FAF8),
         ),
         scaffoldBackgroundColor: const Color(0xFFF8FAF8),
-        fontFamily: 'Roboto', // Default material font, can be customized
+        fontFamily: 'Roboto',
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFFF8FAF8),
           elevation: 0,
@@ -39,7 +45,9 @@ class UKFoodScannerApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const MainShellScreen(),
+      home: completedOnboarding
+          ? const MainShellScreen()
+          : const OnboardingScreen(),
     );
   }
 }

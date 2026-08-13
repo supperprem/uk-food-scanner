@@ -34,8 +34,8 @@ class _ScannerOverlayState extends State<ScannerOverlay>
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        width: 320,
-        height: 160,
+        width: 280,
+        height: 140,
         decoration: BoxDecoration(
           border: Border.all(color: const Color(0xFF43A047), width: 3),
           borderRadius: BorderRadius.circular(20),
@@ -45,8 +45,8 @@ class _ScannerOverlayState extends State<ScannerOverlay>
           children: [
             // Corner accents
             Positioned(
-              top: 10,
-              left: 10,
+              top: 8,
+              left: 8,
               child: Container(
                 width: 20,
                 height: 20,
@@ -59,8 +59,8 @@ class _ScannerOverlayState extends State<ScannerOverlay>
               ),
             ),
             Positioned(
-              top: 10,
-              right: 10,
+              top: 8,
+              right: 8,
               child: Container(
                 width: 20,
                 height: 20,
@@ -73,8 +73,8 @@ class _ScannerOverlayState extends State<ScannerOverlay>
               ),
             ),
             Positioned(
-              bottom: 10,
-              left: 10,
+              bottom: 8,
+              left: 8,
               child: Container(
                 width: 20,
                 height: 20,
@@ -87,8 +87,8 @@ class _ScannerOverlayState extends State<ScannerOverlay>
               ),
             ),
             Positioned(
-              bottom: 10,
-              right: 10,
+              bottom: 8,
+              right: 8,
               child: Container(
                 width: 20,
                 height: 20,
@@ -105,7 +105,7 @@ class _ScannerOverlayState extends State<ScannerOverlay>
               animation: _animation,
               builder: (context, child) {
                 return Positioned(
-                  top: _animation.value * 136 + 12,
+                  top: _animation.value * 120 + 10,
                   left: 16,
                   right: 16,
                   child: Container(

@@ -1,58 +1,86 @@
-import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/product_model.dart';
+import 'logger_service.dart';
 
 class ProductService {
   static const String _boxName = 'scan_history_box';
+  static const int maxHistorySize = 500;
 
-  // Get Hive box instance
   Box get _box => Hive.box(_boxName);
 
-  // Initialize Hive and open box
   static Future<void> initHive() async {
     await Hive.initFlutter();
     if (!Hive.isBoxOpen(_boxName)) {
       await Hive.openBox(_boxName);
-      debugPrint('[ProductService] Hive box "$_boxName" opened successfully.');
+      LoggerService.info(
+        'Hive box "$_boxName" opened successfully.',
+        'ProductService',
+      );
     }
   }
 
-  // Fetch recent scans from Hive local database
   Future<List<ProductModel>> getRecentScans() async {
     try {
       if (!Hive.isBoxOpen(_boxName)) {
         await Hive.openBox(_boxName);
       }
       final rawData = _box.values.toList();
-      debugPrint('[ProductService] Loaded ${rawData.length} scans from Hive.');
       final List<ProductModel> scans = [];
+      final Set<String> seenBarcodes = {};
+
       for (var item in rawData) {
         if (item is Map) {
-          final Map<String, dynamic> jsonMap = Map<String, dynamic>.from(item);
-          scans.add(ProductModel.fromJson(jsonMap));
+          try {
+            final product = ProductModel.fromJson(
+              Map<String, dynamic>.from(item),
+            );
+            if (product.barcode.isNotEmpty &&
+                seenBarcodes.add(product.barcode)) {
+              scans.add(product);
+            }
+          } catch (e, stack) {
+            LoggerService.error(
+              'Error parsing product from Hive',
+              e,
+              stack,
+              'ProductService',
+            );
+          }
         }
       }
-      // Sort by scannedDate descending (newest first)
+
       scans.sort(
         (a, b) => (b.scannedDate ?? DateTime.now()).compareTo(
           a.scannedDate ?? DateTime.now(),
         ),
       );
+
+      if (scans.length > maxHistorySize) {
+        final excess = scans.sublist(maxHistorySize);
+        for (var p in excess) {
+          await _box.delete(p.barcode);
+        }
+        return scans.sublist(0, maxHistorySize);
+      }
+
       return scans;
-    } catch (e) {
-      debugPrint('[ProductService] Error loading scans from Hive: $e');
+    } catch (e, stack) {
+      LoggerService.error(
+        'Error loading scans from Hive',
+        e,
+        stack,
+        'ProductService',
+      );
       return [];
     }
   }
 
-  // Add product to recent scans in Hive local database
   Future<void> addRecentScan(ProductModel product) async {
     try {
       if (!Hive.isBoxOpen(_boxName)) {
         await Hive.openBox(_boxName);
       }
-      // Use barcode as key so duplicates update to top
       final productWithDate = ProductModel(
         barcode: product.barcode,
         name: product.name,
@@ -65,40 +93,57 @@ class ProductService {
         fat: product.fat,
         allergens: product.allergens,
         score: product.score,
+        category: product.category,
         scannedDate: DateTime.now(),
       );
       await _box.put(product.barcode, productWithDate.toJson());
-      debugPrint(
-        '[ProductService] Successfully saved product: ${product.name} (${product.barcode}) to Hive.',
+      LoggerService.info(
+        'Successfully saved product: ${product.name} (${product.barcode}) to Hive.',
+        'ProductService',
       );
-    } catch (e) {
-      debugPrint('[ProductService] Error saving product to Hive: $e');
+
+      if (_box.length > maxHistorySize) {
+        final scans = await getRecentScans();
+        if (scans.length > maxHistorySize) {
+          for (int i = maxHistorySize; i < scans.length; i++) {
+            await _box.delete(scans[i].barcode);
+          }
+        }
+      }
+    } catch (e, stack) {
+      LoggerService.error(
+        'Error saving product to Hive',
+        e,
+        stack,
+        'ProductService',
+      );
     }
   }
 
-  // Delete a specific scan by barcode
   Future<void> deleteScan(String barcode) async {
     try {
       if (!Hive.isBoxOpen(_boxName)) {
         await Hive.openBox(_boxName);
       }
       await _box.delete(barcode);
-      debugPrint('[ProductService] Deleted scan with barcode: $barcode');
-    } catch (e) {
-      debugPrint('[ProductService] Error deleting scan: $e');
+      LoggerService.info(
+        'Deleted scan with barcode: $barcode',
+        'ProductService',
+      );
+    } catch (e, stack) {
+      LoggerService.error('Error deleting scan', e, stack, 'ProductService');
     }
   }
 
-  // Clear all scan history
   Future<void> clearAllHistory() async {
     try {
       if (!Hive.isBoxOpen(_boxName)) {
         await Hive.openBox(_boxName);
       }
       await _box.clear();
-      debugPrint('[ProductService] Cleared all scan history.');
-    } catch (e) {
-      debugPrint('[ProductService] Error clearing history: $e');
+      LoggerService.info('Cleared all scan history.', 'ProductService');
+    } catch (e, stack) {
+      LoggerService.error('Error clearing history', e, stack, 'ProductService');
     }
   }
 }

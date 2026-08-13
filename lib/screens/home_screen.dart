@@ -8,7 +8,7 @@ import '../widgets/score_card.dart';
 import 'scanner_screen.dart';
 import 'profile_screen.dart';
 import 'history_screen.dart';
-import 'barcode_result_screen.dart';
+import 'product_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -331,7 +331,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) =>
-                                      BarcodeResultScreen(product: product),
+                                      ProductDetailScreen(product: product),
                                 ),
                               ).then((_) => _loadRecentScans());
                             },

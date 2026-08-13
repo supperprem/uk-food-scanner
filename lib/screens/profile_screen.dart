@@ -1,4 +1,10 @@
+// ignore_for_file: avoid_print
 import 'package:flutter/material.dart';
+
+import '../services/preferences_service.dart';
+import '../services/history_service.dart';
+import '../services/favourite_service.dart';
+import 'favourites_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -8,23 +14,158 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // User goal state
-  String _selectedGoal = 'Eat healthier';
-  final List<String> _goals = [
-    'Eat healthier',
-    'Weight loss',
-    'Muscle gain',
-    'Family shopping',
+  final PreferencesService _preferencesService = PreferencesService();
+  final HistoryService _historyService = HistoryService();
+  final FavouriteService _favouriteService = FavouriteService();
+
+  String _selectedGoal = 'eat_healthier';
+  bool _isLoading = true;
+  bool _notificationsEnabled = true;
+
+  final List<Map<String, String>> _goals = [
+    {'id': 'eat_healthier', 'name': 'Eat healthier'},
+    {'id': 'weight_loss', 'name': 'Weight loss'},
+    {'id': 'muscle_gain', 'name': 'Muscle gain'},
+    {'id': 'family_shopping', 'name': 'Family shopping'},
   ];
 
-  // Allergies placeholder state
   final List<Map<String, dynamic>> _allergies = [
-    {'name': 'Gluten / Wheat', 'selected': false},
-    {'name': 'Dairy / Lactose', 'selected': false},
-    {'name': 'Nuts / Peanuts', 'selected': true},
-    {'name': 'Soy', 'selected': false},
-    {'name': 'Eggs', 'selected': false},
+    {'id': 'milk', 'name': 'Dairy / Lactose', 'selected': false},
+    {'id': 'gluten', 'name': 'Gluten / Wheat', 'selected': false},
+    {'id': 'nuts', 'name': 'Nuts / Peanuts', 'selected': false},
+    {'id': 'soy', 'name': 'Soy', 'selected': false},
+    {'id': 'eggs', 'name': 'Eggs', 'selected': false},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final goal = await _preferencesService.getHealthGoal();
+    final allergens = await _preferencesService.getAllergens();
+
+    if (mounted) {
+      setState(() {
+        _selectedGoal = goal;
+        for (var allergy in _allergies) {
+          allergy['selected'] = allergens.contains(allergy['id']);
+        }
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _onGoalChanged(String goalId) async {
+    setState(() {
+      _selectedGoal = goalId;
+    });
+    await _preferencesService.saveHealthGoal(goalId);
+    print('Saved health goal: $goalId');
+  }
+
+  Future<void> _onAllergyChanged(String allergyId, bool selected) async {
+    setState(() {
+      for (var allergy in _allergies) {
+        if (allergy['id'] == allergyId) {
+          allergy['selected'] = selected;
+        }
+      }
+    });
+    await _preferencesService.toggleAllergen(allergyId, selected);
+    print('Toggled allergen $allergyId: $selected');
+  }
+
+  Future<void> _clearHistoryPrompt() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear Scan History'),
+        content: const Text(
+          'Are you sure you want to delete all scan history?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _historyService.clearHistory();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Scan history cleared successfully.')),
+      );
+    }
+  }
+
+  Future<void> _clearFavouritesPrompt() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear Saved Products'),
+        content: const Text(
+          'Are you sure you want to remove all saved products?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      // Clear favourites box
+      final favs = await _favouriteService.getFavourites();
+      for (var f in favs) {
+        await _favouriteService.toggleFavourite(f);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saved products cleared successfully.')),
+      );
+    }
+  }
+
+  void _showAboutDialog() {
+    showAboutDialog(
+      context: context,
+      applicationName: 'UK Food Scanner',
+      applicationVersion: '1.0.0+1',
+      applicationIcon: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.eco, color: Color(0xFF2E7D32), size: 32),
+      ),
+      children: [
+        const SizedBox(height: 10),
+        const Text(
+          'UK Food Scanner helps you scan food items, evaluate UK nutritional scores, detect allergens, and discover healthier alternatives using data provided by Open Food Facts.',
+          style: TextStyle(fontSize: 13, height: 1.4),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,228 +176,341 @@ class _ProfileScreenState extends State<ProfileScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black87),
         title: const Text(
-          'Profile & Preferences',
+          'Profile & Settings',
           style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // User account card header
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withValues(alpha: 0.08),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: Color(0xFF2E7D32)),
+              )
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
-                      radius: 32,
-                      backgroundColor: const Color(0xFF2E7D32)
-                          .withValues(alpha: 0.15),
-                      child: const Icon(
-                        Icons.person,
-                        size: 36,
-                        color: Color(0xFF2E7D32),
+                    // User account card header
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withValues(alpha: 0.08),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          Text(
-                            'UK Food Scanner User',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                          CircleAvatar(
+                            radius: 32,
+                            backgroundColor: const Color(0xFF2E7D32)
+                                .withValues(alpha: 0.15),
+                            child: const Icon(
+                              Icons.person,
+                              size: 36,
+                              color: Color(0xFF2E7D32),
                             ),
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Free Account • Version 0.1',
-                            style: TextStyle(fontSize: 13, color: Colors.grey),
+                          const SizedBox(width: 16),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'UK Food Scanner User',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Preferences Synced & Active',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const FavouritesScreen(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.star,
+                              color: Colors.amber,
+                              size: 28,
+                            ),
+                            tooltip: 'View Saved Products',
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 28),
+                    const SizedBox(height: 28),
 
-              // User Goal Section
-              const Text(
-                'Primary Health Goal',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Tailor your scanner scoring and insights to your objective.',
-                style: TextStyle(fontSize: 13, color: Colors.grey),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+                    // User Goal Section
+                    const Text(
+                      'Primary Health Goal',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
-                  ],
-                ),
-                child: Column(
-                  children: _goals.map((goal) {
-                    final isSelected = _selectedGoal == goal;
-                    return InkWell(
-                      onTap: () {
-                        setState(() {
-                          _selectedGoal = goal;
-                        });
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              isSelected
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_off,
-                              color: isSelected
-                                  ? const Color(0xFF2E7D32)
-                                  : Colors.grey,
-                              size: 20,
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Tailor your scanner scoring and insights to your objective.',
+                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withValues(alpha: 0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: _goals.map((goal) {
+                          final goalId = goal['id']!;
+                          final goalName = goal['name']!;
+                          final isSelected = _selectedGoal == goalId;
+                          return InkWell(
+                            onTap: () => _onGoalChanged(goalId),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isSelected
+                                        ? Icons.radio_button_checked
+                                        : Icons.radio_button_off,
+                                    color: isSelected
+                                        ? const Color(0xFF2E7D32)
+                                        : Colors.grey,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Text(
+                                    goalName,
+                                    style: TextStyle(
+                                      fontWeight: isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: isSelected
+                                          ? const Color(0xFF2E7D32)
+                                          : Colors.black87,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(width: 16),
-                            Text(
-                              goal,
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+
+                    // Allergies Section
+                    const Text(
+                      'Allergies & Dietary Restrictions',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Get instant warnings when scanned products contain your allergens.',
+                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withValues(alpha: 0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _allergies.length,
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1, indent: 16, endIndent: 16),
+                        itemBuilder: (context, index) {
+                          final allergy = _allergies[index];
+                          final allergyId = allergy['id'] as String;
+                          final allergyName = allergy['name'] as String;
+                          final isSelected = allergy['selected'] as bool;
+                          return CheckboxListTile(
+                            title: Text(
+                              allergyName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            value: isSelected,
+                            activeColor: const Color(0xFF2E7D32),
+                            onChanged: (bool? value) {
+                              _onAllergyChanged(allergyId, value ?? false);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+
+                    // Settings Section
+                    const Text(
+                      'Settings & App Data',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withValues(alpha: 0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          SwitchListTile(
+                            title: const Text(
+                              'Push Notifications',
                               style: TextStyle(
-                                fontWeight: isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: isSelected
-                                    ? const Color(0xFF2E7D32)
-                                    : Colors.black87,
+                                fontWeight: FontWeight.w500,
                                 fontSize: 15,
                               ),
                             ),
-                          ],
-                        ),
+                            subtitle: const Text(
+                              'Receive nutritional tips and alerts',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            value: _notificationsEnabled,
+                            activeTrackColor: const Color(0xFF2E7D32),
+                            onChanged: (val) {
+                              setState(() => _notificationsEnabled = val);
+                            },
+                          ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.star_outline,
+                              color: Colors.amber,
+                            ),
+                            title: const Text('View Saved Products'),
+                            trailing: const Icon(Icons.chevron_right, size: 20),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const FavouritesScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.red,
+                            ),
+                            title: const Text(
+                              'Clear Scan History',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                            onTap: _clearHistoryPrompt,
+                          ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.cleaning_services_outlined,
+                              color: Colors.red,
+                            ),
+                            title: const Text(
+                              'Clear Saved Products',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                            onTap: _clearFavouritesPrompt,
+                          ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.info_outline,
+                              color: Color(0xFF2E7D32),
+                            ),
+                            title: const Text('About Open Food Facts'),
+                            subtitle: const Text(
+                              'Open database providing food product data',
+                            ),
+                            onTap: _showAboutDialog,
+                          ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                          const ListTile(
+                            leading: Icon(
+                              Icons.phone_android,
+                              color: Colors.grey,
+                            ),
+                            title: Text('App Version'),
+                            trailing: Text(
+                              '1.0.0+1',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 28),
-
-              // Allergies Section Placeholder
-              const Text(
-                'Allergies & Dietary Restrictions',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Get alerts when scanned products contain your allergens.',
-                style: TextStyle(fontSize: 13, color: Colors.grey),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
                     ),
+                    const SizedBox(height: 36),
                   ],
                 ),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _allergies.length,
-                  separatorBuilder: (context, index) =>
-                      const Divider(height: 1, indent: 16, endIndent: 16),
-                  itemBuilder: (context, index) {
-                    final allergy = _allergies[index];
-                    return CheckboxListTile(
-                      title: Text(
-                        allergy['name'],
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
-                      value: allergy['selected'],
-                      activeColor: const Color(0xFF2E7D32),
-                      onChanged: (bool? value) {
-                        setState(() {
-                          _allergies[index]['selected'] = value ?? false;
-                        });
-                        // TODO: Future Firebase sync - save allergies preference
-                      },
-                    );
-                  },
-                ),
               ),
-              const SizedBox(height: 36),
-
-              // Future Firebase / Account Actions Placeholder
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    // TODO: Future Firebase Auth integration - Sign in / Sign out
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Firebase Auth integration coming in Version 0.2!',
-                        ),
-                      ),
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF2E7D32),
-                    side: const BorderSide(
-                      color: Color(0xFF2E7D32),
-                      width: 1.5,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  icon: const Icon(Icons.cloud_sync_outlined),
-                  label: const Text('Sync with Firebase Account'),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
